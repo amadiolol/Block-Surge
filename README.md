@@ -50,7 +50,7 @@ Karena proyek ini tidak membutuhkan *build tool* atau *server* khusus, Anda dapa
 
 1. **Clone repositori ini:**
    ```bash
-   git clone https://github.com/username-anda/block-surge.git
+   git clone https://github.com/amadiolol/Block-Surge.git
    ```
 2. **Buka file permainan:**
    * Klik dua kali pada file `index.html` (atau `blocksurge.html`) untuk membukanya langsung di *browser* favorit Anda (Chrome, Firefox, Edge, atau Safari).
