@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Block Surge: Power-Up Edition</title>
+<style>
+  body {
+    margin: 0;
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: system-ui, -apple-system, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    user-select: none;
+  }
+  .layout {
+    display: flex;
+    gap: 20px;
+    background: #161b22;
+    padding: 20px;
+    border-radius: 14px;
+    border: 1px solid #30363d;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+  }
+  .stage-box {
+    position: relative;
+    border: 2px solid #30363d;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  canvas { display: block; background: #090c10; }
+  .hud {
+    width: 250px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .panel {
+    background: #21262d;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #30363d;
+  }
+  .brand {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #58a6ff;
+    letter-spacing: 0.5px;
+  }
+  .metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .metric-item {
+    background: #0d1117;
+    padding: 8px;
+    border-radius: 6px;
+  }
+  .metric-item span { font-size: 0.7rem; color: #8b949e; display: block; }
+  .metric-item strong { font-size: 1.15rem; color: #fff; }
+  .energy-bar {
+    height: 10px;
+    background: #0d1117;
+    border-radius: 99px;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .energy-fill {
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(90deg, #1f6feb, #58a6ff);
+    transition: width 0.2s;
+  }
+  .skill-btn {
+    width: 100%;
+    background: #161b22;
+    color: #e6edf3;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-top: 6px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: left;
+  }
+  .skill-btn:hover:not(:disabled) { border-color: #58a6ff; background: #1f242c; }
+  .skill-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .badge {
+    background: #1f6feb;
+    color: #fff;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+  #toast {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(31, 111, 235, 0.9);
+    padding: 4px 12px;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+  }
+  #overModal {
+    position: absolute;
+    inset: 0;
+    background: rgba(9, 12, 16, 0.88);
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+  }
+  .restart-btn {
+    background: #238636;
+    color: #fff;
+    border: none;
+    padding: 8px 18px;
+    border-radius: 6px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <div class="stage-box">
+    <canvas id="stage" width="280" height="560"></canvas>
+    <div id="toast">POWER-UP AKTIF!</div>
+    <div id="overModal">
+      <h2 style="margin:0;color:#f85149;">PERMAINAN SELESAI</h2>
+      <div id="endScore">Skor: 0</div>
+      <button class="restart-btn" onclick="initGame()">Main Lagi</button>
+    </div>
+  </div>
+
+  <div class="hud">
+    <div class="panel">
+      <div class="brand">BLOCK SURGE</div>
+      <div style="font-size:0.75rem;color:#8b949e;">Edisi Power-Up Taktis</div>
+    </div>
+
+    <div class="panel metrics">
+      <div class="metric-item"><span>SKOR</span><strong id="uiScore">0</strong></div>
+      <div class="metric-item"><span>LEVEL</span><strong id="uiLevel">1</strong></div>
+      <div class="metric-item"><span>BARIS</span><strong id="uiLines">0</strong></div>
+      <div class="metric-item">
+        <span>BERIKUTNYA</span>
+        <canvas id="preview" width="56" height="42" style="margin-top:4px;"></canvas>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;font-size:0.78rem;font-weight:700;">
+        <span>ENERGI POWER-UP</span>
+        <span id="uiEnergy">100/100</span>
+      </div>
+      <div class="energy-bar"><div class="energy-fill" id="uiBar"></div></div>
+
+      <button class="skill-btn" id="sk1" onclick="triggerSkill(1)">
+        <div><strong>[1] 💣 Kapsul Peledak</strong><br><small style="color:#8b949e;">Ledakan area 5x5</small></div>
+        <span class="badge">30 EN</span>
+      </button>
+      <button class="skill-btn" id="sk2" onclick="triggerSkill(2)">
+        <div><strong>[2] ⚡ Sapuan Plasma</strong><br><small style="color:#8b949e;">Hapus 2 baris dasar</small></div>
+        <span class="badge">40 EN</span>
+      </button>
+      <button class="skill-btn" id="sk3" onclick="triggerSkill(3)">
+        <div><strong>[3] 🧲 Gravitasi Runtuh</strong><br><small style="color:#8b949e;">Tutup semua celah</small></div>
+        <span class="badge">50 EN</span>
+      </button>
+      <button class="skill-btn" id="sk4" onclick="triggerSkill(4)">
+        <div><strong>[4] ⏳ Zona Waktu Lambat</strong><br><small style="color:#8b949e;">Slow-Mo + 2x Skor</small></div>
+        <span class="badge">25 EN</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+const W = 10, H = 20, CELL = 28;
+const cvs = document.getElementById('stage');
+const ctx = cvs.getContext('2d');
+const pCvs = document.getElementById('preview');
+const pCtx = pCvs.getContext('2d');
+
+const PALETTE = [
+  null, '#39d353', '#58a6ff', '#d29922',
+  '#f85149', '#a371f7', '#db6d28', '#3fb950', '#ff3366'
+];
+
+const MOLDS = [
+  [],
+  [[1,1,1,1]],
+  [[2,0,0],[2,2,2]],
+  [[0,0,3],[3,3,3]],
+  [[4,4],[4,4]],
+  [[0,5,5],[5,5,0]],
+  [[0,6,0],[6,6,6]],
+  [[7,7,0],[0,7,7]],
+  [[8]]
+];
+
+let well = [], active = null, upcoming = 1;
+let pts = 0, cleared = 0, tier = 1, energy = 100;
+let tickTimer = 0, prevStamp = 0, slowRemain = 0, halted = false;
+let sparks = [];
+
+function freshWell() {
+  return Array.from({ length: H }, () => Array(W).fill(0));
+}
+
+function pickMold() {
+  return Math.floor(Math.random() * 7) + 1;
+}
+
+function nextShape() {
+  const id = upcoming;
+  upcoming = pickMold();
+  const shape = MOLDS[id].map(r => [...r]);
+  active = {
+    id,
+    shape,
+    cx: Math.floor((W - shape[0].length) / 2),
+    cy: 0
+  };
+  renderPreview();
+  if (hasOverlap(active.cx, active.cy, active.shape)) {
+    halted = true;
+    document.getElementById('endScore').textContent = 'Skor Akhir: ' + pts;
+    document.getElementById('overModal').style.display = 'flex';
+  }
+}
+
+function renderPreview() {
+  pCtx.clearRect(0, 0, pCvs.width, pCvs.height);
+  const s = MOLDS[upcoming];
+  s.forEach((row, r) => row.forEach((v, c) => {
+    if (v) {
+      pCtx.fillStyle = PALETTE[v];
+      pCtx.fillRect(c * 12 + 4, r * 12 + 4, 10, 10);
+    }
+  }));
+}
+
+function hasOverlap(tx, ty, mat) {
+  for (let r = 0; r < mat.length; r++) {
+    for (let c = 0; c < mat[r].length; c++) {
+      if (!mat[r][c]) continue;
+      const nx = tx + c, ny = ty + r;
+      if (nx < 0 || nx >= W || ny >= H) return true;
+      if (ny >= 0 && well[ny][nx] !== 0) return true;
+    }
+  }
+  return false;
+}
+
+function spinShape() {
+  if (active.id === 8) return;
+  const rows = active.shape.length, cols = active.shape[0].length;
+  const turned = Array.from({ length: cols }, (_, c) =>
+    Array.from({ length: rows }, (__, r) => active.shape[rows - 1 - r][c])
+  );
+  for (let shift of [0, -1, 1, -2, 2]) {
+    if (!hasOverlap(active.cx + shift, active.cy, turned)) {
+      active.cx += shift;
+      active.shape = turned;
+      return;
+    }
+  }
+}
+
+function emitSparks(gx, gy, col) {
+  for (let i = 0; i < 6; i++) {
+    sparks.push({
+      x: (gx + 0.5) * CELL,
+      y: (gy + 0.5) * CELL,
+      vx: (Math.random() - 0.5) * 7,
+      vy: (Math.random() - 0.5) * 7,
+      col,
+      ttl: 1
+    });
+  }
+}
+
+function settleActive() {
+  if (active.id === 8) {
+    let hits = 0;
+    for (let r = active.cy - 2; r <= active.cy + 2; r++) {
+      for (let c = active.cx - 2; c <= active.cx + 2; c++) {
+        if (r >= 0 && r < H && c >= 0 && c < W) {
+          if (well[r][c]) hits++;
+          well[r][c] = 0;
+          emitSparks(c, r, '#ff3366');
+        }
+      }
+    }
+    gainPoints(hits * 30);
+  } else {
+    active.shape.forEach((row, r) => row.forEach((v, c) => {
+      if (v && active.cy + r >= 0) well[active.cy + r][active.cx + c] = v;
+    }));
+  }
+  gainEnergy(5);
+  checkFullRows();
+  nextShape();
+}
+
+function checkFullRows() {
+  let count = 0;
+  for (let r = H - 1; r >= 0; r--) {
+    if (well[r].every(v => v !== 0)) {
+      for (let c = 0; c < W; c++) emitSparks(c, r, PALETTE[well[r][c]]);
+      well.splice(r, 1);
+      well.unshift(Array(W).fill(0));
+      count++;
+      r++;
+    }
+  }
+  if (count > 0) {
+    cleared += count;
+    tier = Math.floor(cleared / 10) + 1;
+    gainPoints((count * count * 120) * tier);
+    gainEnergy(count * 25);
+  }
+}
+
+function gainPoints(val) {
+  pts += val * (slowRemain > 0 ? 2 : 1);
+  syncHUD();
+}
+
+function gainEnergy(val) {
+  energy = Math.min(100, Math.max(0, energy + val));
+  syncHUD();
+}
+
+function flashToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.opacity = '1';
+  setTimeout(() => { if (slowRemain <= 0) t.style.opacity = '0'; }, 1400);
+}
+
+function triggerSkill(num) {
+  if (halted) return;
+  const price = { 1: 30, 2: 40, 3: 50, 4: 25 }[num];
+  if (energy < price) return;
+
+  if (num === 1 && active.id !== 8) {
+    gainEnergy(-price);
+    active.id = 8;
+    active.shape = [[8]];
+    flashToast('💣 KAPSUL PELEDAK SIAP!');
+  } else if (num === 2) {
+    gainEnergy(-price);
+    for (let i = 0; i < 2; i++) {
+      for (let c = 0; c < W; c++) emitSparks(c, H - 1, '#58a6ff');
+      well.pop();
+      well.unshift(Array(W).fill(0));
+    }
+    gainPoints(200 * tier);
+    flashToast('⚡ 2 BARIS DASAR DIHAPUS!');
+  } else if (num === 3) {
+    gainEnergy(-price);
+    for (let c = 0; c < W; c++) {
+      const stack = [];
+      for (let r = 0; r < H; r++) if (well[r][c]) stack.push(well[r][c]);
+      for (let r = H - 1; r >= 0; r--) well[r][c] = stack.pop() || 0;
+    }
+    checkFullRows();
+    flashToast('🧲 GRAVITASI RUNTUH!');
+  } else if (num === 4) {
+    gainEnergy(-price);
+    slowRemain = 10000;
+    flashToast('⏳ ZONA LAMBAT + 2X SKOR!');
+  }
+  syncHUD();
+}
+
+function syncHUD() {
+  document.getElementById('uiScore').textContent = pts;
+  document.getElementById('uiLevel').textContent = tier;
+  document.getElementById('uiLines').textContent = cleared;
+  document.getElementById('uiEnergy').textContent = energy + '/100';
+  document.getElementById('uiBar').style.width = energy + '%';
+
+  document.getElementById('sk1').disabled = energy < 30 || (active && active.id === 8);
+  document.getElementById('sk2').disabled = energy < 40;
+  document.getElementById('sk3').disabled = energy < 50;
+  document.getElementById('sk4').disabled = energy < 25;
+}
+
+function paintTile(gx, gy, col, alpha = 1) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = col;
+  ctx.fillRect(gx * CELL + 1, gy * CELL + 1, CELL - 2, CELL - 2);
+  ctx.restore();
+}
+
+function renderStage() {
+  ctx.clearRect(0, 0, cvs.width, cvs.height);
+
+  well.forEach((row, r) => row.forEach((v, c) => {
+    if (v) paintTile(c, r, PALETTE[v]);
+  }));
+
+  if (active && !halted) {
+    let shadowY = active.cy;
+    while (!hasOverlap(active.cx, shadowY + 1, active.shape)) shadowY++;
+    active.shape.forEach((row, r) => row.forEach((v, c) => {
+      if (v) paintTile(active.cx + c, shadowY + r, PALETTE[v], 0.22);
+    }));
+    active.shape.forEach((row, r) => row.forEach((v, c) => {
+      if (v) paintTile(active.cx + c, active.cy + r, PALETTE[v]);
+    }));
+  }
+
+  for (let i = sparks.length - 1; i >= 0; i--) {
+    const p = sparks[i];
+    ctx.fillStyle = p.col;
+    ctx.globalAlpha = p.ttl;
+    ctx.fillRect(p.x, p.y, 4, 4);
+    ctx.globalAlpha = 1;
+    p.x += p.vx;
+    p.y += p.vy;
+    p.ttl -= 0.04;
+    if (p.ttl <= 0) sparks.splice(i, 1);
+  }
+}
+
+function loop(stamp = 0) {
+  const dt = stamp - prevStamp;
+  prevStamp = stamp;
+
+  if (!halted) {
+    if (slowRemain > 0) {
+      slowRemain -= dt;
+      if (slowRemain <= 0) document.getElementById('toast').style.opacity = '0';
+    }
+    const basePace = Math.max(120, 850 - (tier - 1) * 70);
+    const pace = slowRemain > 0 ? basePace * 2.8 : basePace;
+
+    tickTimer += dt;
+    if (tickTimer >= pace) {
+      tickTimer = 0;
+      if (!hasOverlap(active.cx, active.cy + 1, active.shape)) {
+        active.cy++;
+      } else {
+        settleActive();
+      }
+    }
+  }
+  renderStage();
+  requestAnimationFrame(loop);
+}
+
+window.addEventListener('keydown', e => {
+  if (halted) return;
+  if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code)) e.preventDefault();
+  if (e.key === 'ArrowLeft' || e.key === 'a') {
+    if (!hasOverlap(active.cx - 1, active.cy, active.shape)) active.cx--;
+  } else if (e.key === 'ArrowRight' || e.key === 'd') {
+    if (!hasOverlap(active.cx + 1, active.cy, active.shape)) active.cx++;
+  } else if (e.key === 'ArrowDown' || e.key === 's') {
+    if (!hasOverlap(active.cx, active.cy + 1, active.shape)) {
+      active.cy++;
+      gainPoints(1);
+    }
+  } else if (e.key === 'ArrowUp' || e.key === 'w') {
+    spinShape();
+  } else if (e.code === 'Space') {
+    let steps = 0;
+    while (!hasOverlap(active.cx, active.cy + 1, active.shape)) {
+      active.cy++;
+      steps++;
+    }
+    gainPoints(steps * 2);
+    settleActive();
+  } else if (['1','2','3','4'].includes(e.key)) {
+    triggerSkill(Number(e.key));
+  }
+});
+
+function initGame() {
+  well = freshWell();
+  pts = 0; cleared = 0; tier = 1; energy = 100; slowRemain = 0; halted = false;
+  document.getElementById('overModal').style.display = 'none';
+  upcoming = pickMold();
+  nextShape();
+  syncHUD();
+}
+
+initGame();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
